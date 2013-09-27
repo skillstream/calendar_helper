@@ -153,7 +153,7 @@ module CalendarHelper
     cal << %(<td class="#{options[:week_number_class]}">#{week_number(begin_of_week, options[:week_number_format])}</td>) if options[:show_week_numbers]
 
     begin_of_week.upto(first - 1) do |d|
-      cal << generate_other_month_cell(d, options)
+      cal << generate_other_month_cell(d, options, block)
     end unless first.wday == first_weekday
 
     first.upto(last) do |cur|
@@ -180,7 +180,7 @@ module CalendarHelper
 
     # next month
     (last + 1).upto(beginning_of_week(last + 7, first_weekday) - 1)  do |d|
-      cal << generate_other_month_cell(d, options)
+      cal << generate_other_month_cell(d, options, block)
     end unless last.wday == last_weekday
 
     cal << "</tr></tbody></table>"
@@ -242,22 +242,25 @@ module CalendarHelper
     "<td #{cell_attrs}>#{cell_text}</td>"
   end
 
-  def generate_other_month_cell(date, options)
+  def generate_other_month_cell(date, options, block)
     unless options[:show_other_months]
       return generate_cell("", {})
     end
-    cell_attrs = {}
-    cell_attrs[:headers] = th_id(date, options[:table_id])
-    cell_attrs[:class] = options[:other_month_class]
-    cell_attrs[:class] += " weekendDay" if weekend?(date)
-    cell_attrs["data-date"] = date
 
     cell_text = date.day
+    cell_attrs = {}
+    cell_text, cell_attrs = block.call(date) unless block.call(date).nil?
+
+    cell_attrs[:headers]    = ((cell_attrs[:headers]    || "") + " #{th_id(date, options[:table_id])}").strip
+    cell_attrs[:class]      = ((cell_attrs[:class]      || "") + " #{options[:other_month_class]}").strip
+    cell_attrs[:class]      = ((cell_attrs[:class]      || "") + " weekendDay").strip if weekend?(date)
+    cell_attrs["data-date"] = ((cell_attrs["data-date"] || "") + " #{date}").strip
+
     if options[:accessible]
       cell_text += %(<span class="hidden"> #{month_names[date.month]}</span>)
     end
 
-    generate_cell(date.day, cell_attrs)
+    generate_cell(cell_text, cell_attrs)
   end
 
   # Calculates id for th element.
