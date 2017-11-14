@@ -41,6 +41,7 @@ module CalendarHelper
   #   :month_header      => false                               # If you use false, the current month header will disappear.
   #   :calendar_title    => month_names[options[:month]]        # Pass in a custom title for the calendar. Defaults to month name
   #   :show_other_months => true                                # Do not show the days for the previous and next months
+  #   :weekly_view       => false                               # Present a 1 week view
   #
   # For more customization, you can pass a code block to this method, that will get one argument, a Date object,
   # and return a values for the individual table cells. The block can return an array, [cell_text, cell_attrs],
@@ -77,6 +78,7 @@ module CalendarHelper
   def calendar(options = {}, &block)
     raise(ArgumentError, "No year given")  unless options.has_key?(:year)
     raise(ArgumentError, "No month given") unless options.has_key?(:month)
+    raise(ArgumentError, "No day given") if options[:weekly_view] && !options.has_key?(:day)
 
     block                        ||= Proc.new {|d| nil}
 
@@ -102,18 +104,30 @@ module CalendarHelper
       :week_number_class   => 'weekNumber',
       :week_number_title   => 'CW',
       :week_number_format  => :iso8601, # :iso8601 or :us_canada,
-      :show_other_months   => true
+      :show_other_months   => true,
+      :weekly_view         => false
     }
     options = defaults.merge options
 
-    first = Date.civil(options[:year], options[:month], 1)
-    last = Date.civil(options[:year], options[:month], -1)
+    day = options[:weekly_view] ? options[:day] : 1
+    first = Date.civil(options[:year], options[:month], day)
+    last = if options[:weekly_view]
+             beginning_of_week(first + 7, options[:first_day_of_week]) - 1
+           else
+             Date.civil(options[:year], options[:month], -1)
+           end
 
     first_weekday = first_day_of_week(options[:first_day_of_week])
     last_weekday = last_day_of_week(options[:first_day_of_week])
 
-    day_names = (!defined?(I18n) || I18n.t("date.day_names").include?("missing")) ? Date::DAYNAMES : I18n.t("date.day_names")
-    abbr_day_names = (!defined?(I18n) || I18n.t("date.abbr_day_names").include?("missing")) ? Date::ABBR_DAYNAMES : I18n.t("date.abbr_day_names")
+    begin_of_week = beginning_of_week(first, first_weekday)
+
+    if options[:weekly_view] # override a few options if displaying the weekly_view
+      options[:summary] = "Calendar for week commencing #{begin_of_week}"
+      options[:table_id] = "calendar-wc-#{begin_of_week}"
+      options[:other_month_class] = ''
+    end
+
     week_days = (0..6).to_a
     first_weekday.times do
       week_days.push(week_days.shift)
@@ -140,18 +154,16 @@ module CalendarHelper
 
     cal << %(<th>#{options[:week_number_title]}</th>) if options[:show_week_numbers]
 
+    # day names header
     week_days.each do |wday|
       cal << %(<th id="#{th_id(Date::DAYNAMES[wday], options[:table_id])}" scope="col">)
-      cal << (options[:abbrev] ? %(<abbr title="#{day_names[wday]}">#{abbr_day_names[wday]}</abbr>) : day_names[wday])
+      cal << day_name_value(wday, begin_of_week, options[:first_day_of_week], options[:abbrev], options[:weekly_view])
       cal << %(</th>)
     end
 
     cal << "</tr></thead><tbody><tr>"
 
-    # previous month
-    begin_of_week = beginning_of_week(first, first_weekday)
     cal << %(<td class="#{options[:week_number_class]}">#{week_number(begin_of_week, options[:week_number_format])}</td>) if options[:show_week_numbers]
-
     begin_of_week.upto(first - 1) do |d|
       cal << generate_other_month_cell(d, options, block)
     end unless first.wday == first_weekday
@@ -271,6 +283,30 @@ module CalendarHelper
   def th_id(day, calendar_id)
     return th_id(Date::DAYNAMES[day.wday], calendar_id) if day.is_a?(Date)
     "#{calendar_id}-#{day[0..2].downcase}"
+  end
+
+  def day_names
+    @day_names ||= (!defined?(I18n) || I18n.t("date.day_names").include?("missing")) ? Date::DAYNAMES : I18n.t("date.day_names")
+  end
+
+  def abbr_day_names
+    @abbr_day_names ||= (!defined?(I18n) || I18n.t("date.abbr_day_names").include?("missing")) ? Date::ABBR_DAYNAMES : I18n.t("date.abbr_day_names")
+  end
+
+  def day_name_value(wday, begin_of_week, first_day_of_week, abbrev, weekly_view)
+    offset = wday - first_day_of_week
+    offset += 7 if offset < 0
+    day = "%02d" % (begin_of_week + offset).day
+
+    day_name = day_names[wday]
+    day_name += " #{day}" if weekly_view
+
+    return day_name unless abbrev
+
+    abbr_day_name = abbr_day_names[wday]
+    abbr_day_name += " #{day}" if weekly_view
+
+    %(<abbr title="#{day_name}">#{abbr_day_name}</abbr>)
   end
 
   def weekend?(date)
