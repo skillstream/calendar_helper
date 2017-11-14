@@ -42,6 +42,8 @@ module CalendarHelper
   #   :calendar_title    => month_names[options[:month]]        # Pass in a custom title for the calendar. Defaults to month name
   #   :show_other_months => true                                # Do not show the days for the previous and next months
   #   :weekly_view       => false                               # Present a 1 week view
+  #   :pre_columns       => nil                                 # Add an additional number of columns to the left of the calendar
+  #   :post_columns      => nil                                 # Add an additional number of columns to the right of the calendar
   #
   # For more customization, you can pass a code block to this method, that will get one argument, a Date object,
   # and return a values for the individual table cells. The block can return an array, [cell_text, cell_attrs],
@@ -105,7 +107,9 @@ module CalendarHelper
       :week_number_title   => 'CW',
       :week_number_format  => :iso8601, # :iso8601 or :us_canada,
       :show_other_months   => true,
-      :weekly_view         => false
+      :weekly_view         => false,
+      :pre_columns         => nil,
+      :post_columns        => nil
     }
     options = defaults.merge options
 
@@ -139,6 +143,7 @@ module CalendarHelper
 
     if (options[:month_header])
       cal << %(<tr>)
+      cal << add_columns('th', options[:pre_columns])
       if options[:previous_month_text] or options[:next_month_text]
         cal << %(<th colspan="2">#{options[:previous_month_text]}</th>)
         colspan = options[:show_week_numbers] ? 4 : 3
@@ -147,11 +152,13 @@ module CalendarHelper
       end
       cal << %(<th colspan="#{colspan}" class="#{options[:month_name_class]}">#{options[:calendar_title]}</th>)
       cal << %(<th colspan="2">#{options[:next_month_text]}</th>) if options[:next_month_text]
+      cal << add_columns('th', options[:post_columns])
       cal << %(</tr>)
     end
 
     cal << %(<tr class="#{options[:day_name_class]}">)
 
+    cal << add_columns('th', options[:pre_columns])
     cal << %(<th>#{options[:week_number_title]}</th>) if options[:show_week_numbers]
 
     # day names header
@@ -160,9 +167,11 @@ module CalendarHelper
       cal << day_name_value(wday, begin_of_week, options[:first_day_of_week], options[:abbrev], options[:weekly_view])
       cal << %(</th>)
     end
+    cal << add_columns('th', options[:post_columns])
 
     cal << "</tr></thead><tbody><tr>"
 
+    cal << add_columns('td', options[:pre_columns])
     cal << %(<td class="#{options[:week_number_class]}">#{week_number(begin_of_week, options[:week_number_format])}</td>) if options[:show_week_numbers]
     begin_of_week.upto(first - 1) do |d|
       cal << generate_other_month_cell(d, options, block)
@@ -182,24 +191,37 @@ module CalendarHelper
       cal << generate_cell(cell_text, cell_attrs)
 
       if cur.wday == last_weekday
+        cal << add_columns('td', options[:post_columns])
         cal << %(</tr>)
         if cur != last
           cal << %(<tr>)
+          cal << add_columns('td', options[:pre_columns])
           cal << %(<td class="#{options[:week_number_class]}">#{week_number(cur + 1, options[:week_number_format])}</td>) if options[:show_week_numbers]
         end
       end
     end
 
     # next month
-    (last + 1).upto(beginning_of_week(last + 7, first_weekday) - 1)  do |d|
-      cal << generate_other_month_cell(d, options, block)
-    end unless last.wday == last_weekday
+    unless last.wday == last_weekday
+      (last + 1).upto(beginning_of_week(last + 7, first_weekday) - 1)  do |d|
+        cal << generate_other_month_cell(d, options, block)
+      end
+      cal << add_columns('td', options[:post_columns])
+    end
 
     cal << "</tr></tbody></table>"
     cal.respond_to?(:html_safe) ? cal.html_safe : cal
   end
 
   private
+
+  def add_columns(element, count)
+    return '' if count.nil?
+
+    count.times.map do |n|
+      "<#{element} class='extra-col'></#{element}>"
+    end.join
+  end
 
   def week_number(day, format)
     case format
