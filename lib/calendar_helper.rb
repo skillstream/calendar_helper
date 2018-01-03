@@ -41,7 +41,8 @@ module CalendarHelper
   #   :month_header      => false                               # If you use false, the current month header will disappear.
   #   :calendar_title    => month_names[options[:month]]        # Pass in a custom title for the calendar. Defaults to month name
   #   :show_other_months => true                                # Do not show the days for the previous and next months
-  #   :weekly_view       => false                               # Present a 1 week view
+  #   :weekly_view       => false                               # Present a weekly view
+  #   :no_of_weeks       => 1                                   # The number of weeks to present in weekly mode
   #   :pre_columns       => nil                                 # Add an additional number of columns to the left of the calendar
   #   :post_columns      => nil                                 # Add an additional number of columns to the right of the calendar
   #
@@ -108,15 +109,18 @@ module CalendarHelper
       :week_number_format  => :iso8601, # :iso8601 or :us_canada,
       :show_other_months   => true,
       :weekly_view         => false,
+      :no_of_weeks         => 1,
       :pre_columns         => nil,
       :post_columns        => nil
     }
     options = defaults.merge options
 
+    no_of_weeks = (options[:no_of_weeks] || 1).to_i
+
     day = options[:weekly_view] ? options[:day] : 1
     first = Date.civil(options[:year], options[:month], day)
     last = if options[:weekly_view]
-             beginning_of_week(first + 7, options[:first_day_of_week]) - 1
+             beginning_of_week(first, options[:first_day_of_week]) + (7 * no_of_weeks) - 1
            else
              Date.civil(options[:year], options[:month], -1)
            end
@@ -162,10 +166,14 @@ module CalendarHelper
     cal << %(<th>#{options[:week_number_title]}</th>) if options[:show_week_numbers]
 
     # day names header
-    week_days.each do |wday|
-      cal << %(<th id="#{th_id(Date::DAYNAMES[wday], options[:table_id])}" scope="col">)
-      cal << day_name_value(wday, begin_of_week, options[:first_day_of_week], options[:abbrev], options[:weekly_view])
-      cal << %(</th>)
+    week_count = 1
+    no_of_weeks.times do
+      week_days.each do |wday|
+        cal << %(<th id="#{th_id(Date::DAYNAMES[wday], options[:table_id])}" scope="col">)
+        cal << day_name_value(wday, begin_of_week, options[:first_day_of_week], options[:abbrev], options[:weekly_view], week_count)
+        cal << %(</th>)
+      end
+      week_count += 1
     end
     cal << add_columns('th', options[:post_columns])
 
@@ -190,13 +198,20 @@ module CalendarHelper
 
       cal << generate_cell(cell_text, cell_attrs)
 
-      if cur.wday == last_weekday
-        cal << add_columns('td', options[:post_columns])
-        cal << %(</tr>)
-        if cur != last
-          cal << %(<tr>)
-          cal << add_columns('td', options[:pre_columns])
-          cal << %(<td class="#{options[:week_number_class]}">#{week_number(cur + 1, options[:week_number_format])}</td>) if options[:show_week_numbers]
+      if options[:weekly_view]
+        if cur == last
+          cal << add_columns('td', options[:post_columns])
+          cal << %(</tr>)
+        end
+      else
+        if cur.wday == last_weekday
+          cal << add_columns('td', options[:post_columns])
+          cal << %(</tr>)
+          if cur != last
+            cal << %(<tr>)
+            cal << add_columns('td', options[:pre_columns])
+            cal << %(<td class="#{options[:week_number_class]}">#{week_number(cur + 1, options[:week_number_format])}</td>) if options[:show_week_numbers]
+          end
         end
       end
     end
@@ -315,10 +330,10 @@ module CalendarHelper
     @abbr_day_names ||= (!defined?(I18n) || I18n.t("date.abbr_day_names").include?("missing")) ? Date::ABBR_DAYNAMES : I18n.t("date.abbr_day_names")
   end
 
-  def day_name_value(wday, begin_of_week, first_day_of_week, abbrev, weekly_view)
+  def day_name_value(wday, begin_of_week, first_day_of_week, abbrev, weekly_view, week_count)
     offset = wday - first_day_of_week
     offset += 7 if offset < 0
-    day = "%02d" % (begin_of_week + offset).day
+    day = "%02d" % (begin_of_week + (7 * (week_count - 1)) + offset).day
 
     day_name = day_names[wday]
     day_name += " #{day}" if weekly_view
