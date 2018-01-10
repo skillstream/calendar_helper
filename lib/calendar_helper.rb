@@ -336,14 +336,9 @@ module CalendarHelper
     day = "%02d" % (begin_of_week + (7 * (week_count - 1)) + offset).day
 
     day_name = day_names[wday]
-    day_name += " #{day}" if weekly_view
-
-    return day_name unless abbrev
-
     abbr_day_name = abbr_day_names[wday]
-    abbr_day_name += " #{day}" if weekly_view
 
-    %(<abbr title="#{day_name}">#{abbr_day_name}</abbr>)
+    %(<span class="date-details"><span class='full #{'d-none' if abbrev}'>#{day_name}</span><abbr title="#{day_name}" class="abbr #{'d-none' unless abbrev}">#{abbr_day_name}</abbr><span class="day #{'d-none' unless weekly_view}">#{day}</span>)
   end
 
   def weekend?(date)
