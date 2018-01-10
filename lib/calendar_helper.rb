@@ -224,7 +224,7 @@ module CalendarHelper
       cal << add_columns('td', options[:post_columns])
     end
 
-    cal << "</tr></tbody></table>"
+    cal << "</tr></tbody><tfoot></tfoot></table>"
     cal.respond_to?(:html_safe) ? cal.html_safe : cal
   end
 
